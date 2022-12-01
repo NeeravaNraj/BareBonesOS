@@ -3,6 +3,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+// 16 Vga colors
 enum vga_color {
     VGA_COLOR_BLACK = 0,
 	VGA_COLOR_BLUE = 1,
@@ -22,11 +23,13 @@ enum vga_color {
 	VGA_COLOR_WHITE = 15,
 };
 
+// sets foreground and background colors
 static inline uint8_t vga_entry_color(enum vga_color fg, enum vga_color bg)
 {
     return fg | bg << 4;
 }
 
+// enter a character with specified color
 static inline uint16_t vga_entry(unsigned char uc, uint8_t color)
 {
     return (uint16_t) uc | (uint16_t) color << 8;
@@ -41,6 +44,7 @@ size_t terminal_column;
 uint8_t terminal_color;
 uint16_t* terminal_buffer;
 
+// setting up environment
 void terminal_initialize(void)
 {
     terminal_row = 0;
@@ -60,6 +64,7 @@ void terminal_setcolor(uint8_t color)
     terminal_color = color;
 }
 
+// scrolls the terminal when full
 void scroll(void)
 {
     unsigned short blank, temp;
@@ -67,9 +72,9 @@ void scroll(void)
 
     if (terminal_row >= VGA_HEIGHT){
         temp = terminal_row - 25 + 1;
-        memcpy(terminal_buffer, terminal_buffer + temp *  80, (25 - temp) * 80 * 2);
-        memsetw(terminal_buffer + (25 - temp) * 80, blank, 80);
-        terminal_row = 25 - 1;
+        memcpy(terminal_buffer, terminal_buffer + temp *  VGA_WIDTH, (VGA_HEIGHT - temp) * VGA_WIDTH * 2);
+        memsetw(terminal_buffer + (VGA_HEIGHT - temp) * VGA_WIDTH, blank, VGA_WIDTH);
+        terminal_row = VGA_HEIGHT - 1;
     }
 
 }
@@ -95,7 +100,7 @@ void fill_terminal(const char* string){
 	}
 }
 
-
+// puts a character on screen at a specified location
 void terminal_putentryat(char c, uint8_t color, size_t x, size_t y)
 {
     const size_t index = y * VGA_WIDTH + x;
@@ -123,13 +128,13 @@ void terminal_putchar(char c)
     scroll();
 }
 
-void terminal_write(const char* data, size_t size)
+void terminal_write(const char* data)
 {
-    for (size_t i = 0; i < size; i++)
-        terminal_putchar(data[i]);
+    while (*data)
+        terminal_putchar(*data++);
 }
 
 void terminal_writestring(const char* data)
 {
-    terminal_write(data, strlen(data));
+    terminal_write(data);
 }

@@ -16,6 +16,7 @@
 
 void kernel_main(void)
 {
+    gdt_install();
     terminal_initialize();
     fill_terminal("Hello, kernel!\n");
 }

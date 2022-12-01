@@ -75,6 +75,28 @@ _start:
 1:  hlt
     jmp 1b
 
+# ----------
+# Setup GDT
+# ----------
+# This will set up our new segment registers. We need to do
+# something special in order to set CS. We do what is called a
+# far jump. A jump that includes a segment as well as an offset.
+# This is declared in C as 'extern void gdt_flush();'
+.global _gdt_flush              # Allows the C code to this
+.extern gp                     # Says that '_gp' is in another file
+_gdt_flush:
+    lgdt [gp]                  # Load the GDT with out '_gp' which is a special pointer
+    mov %ax, 0x10               # 0x10 is the offset in the GDT to our data segment
+    mov %ds, %ax
+    mov %es, %ax
+    mov %fs, %ax
+    mov %gs, %ax
+    mov %ss, %ax
+    jmp 0x08                    # 0x08 is the offset to our code segment: Far jump!
+flush2:
+    ret                         # Returns back to the C code!
+
+
 # Set the size of the _start symbol to the current location '.'minus its start.
 # This is useful when debugging or when you implement call tracing.
 .size _start, . - _start
