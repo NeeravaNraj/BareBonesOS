@@ -17,6 +17,8 @@
 void kernel_main(void)
 {
     gdt_install();
+    idt_install();
     terminal_initialize();
-    fill_terminal("Hello, kernel!\n");
+    terminal_writestring("Hello, and how are you doing!\n");
+    int a = 2 / 0;
 }

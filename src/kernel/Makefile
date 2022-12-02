@@ -13,5 +13,5 @@ OBJ_FILES = $(SRC_FILES:.c=.o)
 all: $(OBJ_FILES)
 
 %.o: %.c
-	@$(GCC) $(CFLAGS) $(DIR)/src/kernel/$< -o $(DIR)/$(BUILD_DIR)/o/kernel/$@
+	$(GCC) $(CFLAGS) $(DIR)/src/kernel/$< -o $(DIR)/$(BUILD_DIR)/o/kernel/$@
 

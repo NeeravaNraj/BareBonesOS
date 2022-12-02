@@ -1,102 +1,85 @@
-# Declare constants for multiboot header
+; This is the kernel's entry point. We could either call main here,
+; or we can use this to setup the stack or other nice stuff, like
+; perhaps setting up the GDT and segments. Please note that interrupts
+; are disabled at this point: More on interrupts later!
+[BITS 32]
+global start
+start:
+    mov esp, _sys_stack     ; This points the stack to our new stack area
+    jmp stublet
 
-.set ALIGN, 1<<0                # align loaded modules on page boundaries
-.set MEMINFO, 1<<1              # provide memory map
-.set FLAGS, ALIGN | MEMINFO     # this is the Multiboot 'flag' field
-.set MAGIC, 0x1BADB002          # 'magic number' lets bootloader find the header
-.set CHECKSUM, -(MAGIC + FLAGS) # checksum of above, to prove we are in multiboot
+; This part MUST be 4byte aligned, so we solve that issue using 'ALIGN 4'
+ALIGN 4
+mboot:
+    ; Multiboot macros to make a few lines later more readable
+    MULTIBOOT_PAGE_ALIGN	equ 1<<0
+    MULTIBOOT_MEMORY_INFO	equ 1<<1
+    MULTIBOOT_AOUT_KLUDGE	equ 1<<16
+    MULTIBOOT_HEADER_MAGIC	equ 0x1BADB002
+    MULTIBOOT_HEADER_FLAGS	equ MULTIBOOT_PAGE_ALIGN | MULTIBOOT_MEMORY_INFO | MULTIBOOT_AOUT_KLUDGE
+    MULTIBOOT_CHECKSUM	equ -(MULTIBOOT_HEADER_MAGIC + MULTIBOOT_HEADER_FLAGS)
+    EXTERN code, bss, end
 
-
-# Declare multiboot header that marks the program as a kernel. These are magic values that are documented in the multiboot standar.
-# The boot loader will search for this signature in the first 8 KiB of the kernel file, aligned at a 32-bit boundary.
-# The signature is in its own section so the header can be forced to be withing the first 8 KiB of the kernel file.
-
-.section .multiboot
-.align 4
-.long MAGIC
-.long FLAGS
-.long CHECKSUM
-
-
-# The multiboot standard does not define the value of the stack pointer register (esp) and it is up to the kernel to provide a stack.
-# This allocates room for a small stack by creating a sybol at the bottom of it, then allocating 16384 bytes
-# for it and finally creating a symbol at the top
-# The stack grows downwards on x86. the stack is in its own section so it can be marked nobits, which means the 
-# kernel file is smaller because it does not contain an uninitialized stack.
-# The stack on x86 must be 16-byte aligned according to the System V ABI standard and de-facto extension.
-# The compiler will assume the stack is properly aligned and failure to align the stack will result in undefined behaviour.
-
-.section .bss
-.align 16
-stack_bottom:
-    .skip 16384 # 16 KiB
-stack_top:
-
-# The linker script specifies _start as the entry point to the kernel and the bootloader will jump to this position once the kernel
-# has been loaded. It doesn't make sense to return from this function as the bootloader is gone.
-.section .text
-.global _start
-.type _start, @function
-_start:
-# The bootloader has loaded us into 32-bit protected mode on a x86 machine. Interrupts are disabled. Paging is disabled.
-# The processor state is as difined in the multiboot standard.
-# The kernel has full control of the CPU. The kernel can only make use of hardware features and any code it provide as part
-# of itself. There's no printf function, unless the kernel provide its own <stdio.h> header and a a printf implementation. 
-# There are no security resitrictions, no safeguards, no debugging mechanisms, only what the kernel provides itself.
-# It has absolute and complete power over the machine.
-
-
-# To set up a stack, we set the esp register to point to the top of the stack (as it grows downwards on x86 systems).
-# This is necessarily done in assembly as languages such as C cannot function without a stack.
-
-    mov $stack_top, %esp
-
-# This is a good place to initialize crucial processor state before the high-level kernel is entered.
-# It's best to minimize the early environment where crucial features are offline.
-# Note that the processor is not fully initialized yet: 
-# Features such as floating point instructions and instruction set extensions are not initialized yet.
-# The GDT (global descriptor table) shold be loaded here. Paging should be enabled here.
-# C++ features such as global constructors and exceptions will require runtime support to work as well.
-
-# Enter the high-level kernel. The ABI requires the stack is 16 byte aligned at the time of the 
-# call instruction (which after wards pushes the return pointer of size 4 bytes).
-# The stack was originally 16-byte aligned above and we've pushed a multiple of 16 bytes to the stack since (pushed 0 bytes so far)
+    ; This is the GRUB Multiboot header. A boot signature
+    dd MULTIBOOT_HEADER_MAGIC
+    dd MULTIBOOT_HEADER_FLAGS
+    dd MULTIBOOT_CHECKSUM
     
+    ; AOUT kludge - must be physical addresses. Make a note of these:
+    ; The linker script fills in the data for these ones!
+    dd mboot
+    dd code
+    dd bss
+    dd end
+    dd start
+
+; This is an endless loop here. Make a note of this: Later on, we
+; will insert an 'extern _main', followed by 'call _main', right
+; before the 'jmp $'.
+stublet:
+    extern kernel_main
     call kernel_main
+    jmp $
 
-# If the system hs nothing more to do, put the computer into an infinite loop. To do that:
-# (1) Disable interrupts with 'cli' (clear interrupt enable in eflags).
-#       They are already disabled by the bootloader, so this is not needed.
-#       Mind that you might later enable interrupts and return from kernel_main (which is sort of nonsensical to do).
-# (2) Wait for the next interrupt to arrive with hlt (halt instruction).
-#       Since they are disabled, this will lock up the computer.
-# (3) Jump to the hlt instruction if it ever wakes up due to a non-maskable interrupt occurring or due to systen management mode.
-    cli
-1:  hlt
-    jmp 1b
 
-# ----------
-# Setup GDT
-# ----------
-# This will set up our new segment registers. We need to do
-# something special in order to set CS. We do what is called a
-# far jump. A jump that includes a segment as well as an offset.
-# This is declared in C as 'extern void gdt_flush();'
-.global _gdt_flush              # Allows the C code to this
-.extern gp                     # Says that '_gp' is in another file
+; Shortly we will add code for loading the GDT right here!
+
+; This will set up our new segment registers. We need to do
+; something special in order to set CS. We do what is called a
+; far jump. A jump that includes a segment as well as an offset.
+; This is declared in C as 'extern void gdt_flush();'
+global _gdt_flush     ; Allows the C code to link to this
+extern gp            ; Says that '_gp' is in another file
 _gdt_flush:
-    lgdt [gp]                  # Load the GDT with out '_gp' which is a special pointer
-    mov %ax, 0x10               # 0x10 is the offset in the GDT to our data segment
-    mov %ds, %ax
-    mov %es, %ax
-    mov %fs, %ax
-    mov %gs, %ax
-    mov %ss, %ax
-    jmp 0x08                    # 0x08 is the offset to our code segment: Far jump!
+    lgdt [gp]        ; Load the GDT with our '_gp' which is a special pointer
+    mov ax, 0x10      ; 0x10 is the offset in the GDT to our data segment
+    mov ds, ax
+    mov es, ax
+    mov fs, ax
+    mov gs, ax
+    mov ss, ax
+    jmp 0x08:flush2   ; 0x08 is the offset to our code segment: Far jump!
 flush2:
-    ret                         # Returns back to the C code!
+    ret               ; Returns back to the C code!
+
+; Loads the IDT defined in '_idtp' into the processor.
+; This is devalred in C as 'extern void idt_load()'.
+global _idt_load
+extern idtp
+_idt_load:
+    lidt [idtp]
+    ret
+
+; In just a few pages in this tutorial, we will add our Interrupt
+; Service Routines (ISRs) right here!
 
 
-# Set the size of the _start symbol to the current location '.'minus its start.
-# This is useful when debugging or when you implement call tracing.
-.size _start, . - _start
+
+; Here is the definition of our BSS section. Right now, we'll use
+; it just to store the stack. Remember that a stack actually grows
+; downwards, so we declare the size of the data before declaring
+; the identifier '_sys_stack'
+SECTION .bss
+    resb 8192               ; This reserves 8KBytes of memory here
+_sys_stack:
+

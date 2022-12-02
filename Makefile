@@ -10,7 +10,7 @@ INC=$(SRC_DIR)/kernel/include
 CFILES=$(foreach D, $(LIB), $(wildcard $(D)/*.c))
 DEPFILES=$(patsubst %.c, %.d, $(CFILES))
 
-ASM:=$(CROSS)/$(TARGET)-as
+ASM:=nasm
 GCC:=$(CROSS)/$(TARGET)-gcc
 LD:=$(CROSS)/$(TARGET)-gcc
 OLINK:=$(CROSS)/$(TARGET)-ld
@@ -37,14 +37,14 @@ $(BUILD_DIR)/$(OS).bin: link
 	@rm $(OS).iso
 	@cp $(BUILD_DIR)/bin/$(OS).bin $(ISO_DIR)/boot/$(OS).bin
 	@cp $(SRC_DIR)/grub.cfg $(ISO_DIR)/boot/grub/grub.cfg
-	@$(GRUB) -o $(OS).iso $(ISO_DIR)
+	$(GRUB) -o $(OS).iso $(ISO_DIR)
 	@echo  Done successfully.
 	@./run.sh
 
 link: bootloader kernel $(BUILD_DIR)
 $(BUILD_DIR): $(BUILD_DIR)/bin $(ISO_DIR)/boot/cfg
 	@echo Linking
-	@$(LD) -T $(SRC_DIR)/linker/linker.ld -o $(BUILD_DIR)/bin/$(OS).bin $(LINK_FLAGS) $(BUILD_DIR)/o/boot/boot.o $(BUILD_DIR)/o/kernel/*.o $(BUILD_DIR)/o/kernel/lib/*.o -lgcc
+	$(LD) -T $(SRC_DIR)/linker/linker.ld -o $(BUILD_DIR)/bin/$(OS).bin $(LINK_FLAGS) $(BUILD_DIR)/o/boot/boot.o $(BUILD_DIR)/o/kernel/*.o $(BUILD_DIR)/o/kernel/lib/*.o -lgcc
 
 $(BUILD_DIR)/bin:
 	@mkdir -p $(BUILD_DIR)/bin
@@ -53,18 +53,17 @@ $(ISO_DIR)/boot/cfg:
 	@mkdir -p $(ISO_DIR)/boot/cfg
 	
 
-bootloader: $(BUILD_DIR)/o/boot/boot.o $(SRC_DIR)/boot/boot.asm
-	@echo Assembling bootloader
-$(SRC_DIR)/boot/boot.asm:
-	@$(ASM) $(SRC_DIR)/boot/boot.asm -o $(BUILD_DIR)/o/boot/boot.o
-$(BUILD_DIR)/o/boot/boot.o:
+bootloader: $(BUILD_DIR)/o/boot/boot.o 
+$(BUILD_DIR)/o/boot/boot.o: $(SRC_DIR)/boot/boot.asm
 	@mkdir -p $(BUILD_DIR)/o/boot
+	@echo Assembling bootloader
+	$(ASM) -felf32 $(SRC_DIR)/boot/boot.asm -o $(BUILD_DIR)/o/boot/boot.o
 
 kernel: $(OBJECTS) $(BUILD_DIR)/o/kernel/lib
-	@echo Compiling C files
 $(BUILD_DIR)/o/kernel/lib:
 	mkdir -p $(BUILD_DIR)/o/kernel/lib
 $(OBJECTS): $(CFILES) $(INC)/system.h
+	@echo Compiling C files
 	@make --no-print-directory -C ./src/kernel
 	
 clean:

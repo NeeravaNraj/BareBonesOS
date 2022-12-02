@@ -16,4 +16,5 @@ extern unsigned char inportb (unsigned short _port);
 extern size_t strlen(const char* str);
 extern void fill_terminal(const char* string);
 extern void gdt_install(void);
+extern void idt_install(void);
 #endif
