@@ -1,4 +1,4 @@
-#include "../include/system.h"
+#include <system.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -62,6 +62,11 @@ void terminal_initialize(void)
 void terminal_setcolor(uint8_t color)
 {
     terminal_color = color;
+}
+
+uint8_t terminal_getcurrcolor(void)
+{
+    return terminal_color;
 }
 
 // scrolls the terminal when full

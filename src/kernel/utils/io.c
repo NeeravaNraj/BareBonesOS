@@ -1,4 +1,4 @@
-#include "../include/system.h"
+#include <system.h>
 #include <stddef.h>
 
 unsigned char inportb (unsigned short _port)

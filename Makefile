@@ -33,38 +33,41 @@ all: iso_image
 
 iso_image: $(BUILD_DIR)/$(OS).bin
 $(BUILD_DIR)/$(OS).bin: link
-	@echo  Creating ISO file
-	@rm $(OS).iso
+	@echo -----------------
+	@echo Creating ISO file
+	@echo -----------------
+	@rm -f $(OS).iso
+	mkdir -p $(ISO_DIR)/boot/grub
 	@cp $(BUILD_DIR)/bin/$(OS).bin $(ISO_DIR)/boot/$(OS).bin
 	@cp $(SRC_DIR)/grub.cfg $(ISO_DIR)/boot/grub/grub.cfg
 	$(GRUB) -o $(OS).iso $(ISO_DIR)
 	@echo  Done successfully.
 	@./run.sh
 
-link: bootloader kernel $(BUILD_DIR)
-$(BUILD_DIR): $(BUILD_DIR)/bin $(ISO_DIR)/boot/cfg
+link: bootloader kernel
+	@echo -------
 	@echo Linking
-	$(LD) -T $(SRC_DIR)/linker/linker.ld -o $(BUILD_DIR)/bin/$(OS).bin $(LINK_FLAGS) $(BUILD_DIR)/o/boot/boot.o $(BUILD_DIR)/o/kernel/*.o $(BUILD_DIR)/o/kernel/lib/*.o -lgcc
-
-$(BUILD_DIR)/bin:
+	@echo -------
 	@mkdir -p $(BUILD_DIR)/bin
+	$(LD) -T $(SRC_DIR)/linker/linker.ld -o $(BUILD_DIR)/bin/$(OS).bin $(LINK_FLAGS) $(BUILD_DIR)/o/boot/boot.o $(BUILD_DIR)/o/kernel/*.o $(BUILD_DIR)/o/kernel/lib/*.o $(BUILD_DIR)/o/kernel/utils/*.o -lgcc
 
-$(ISO_DIR)/boot/cfg:
-	@mkdir -p $(ISO_DIR)/boot/cfg
 	
 
 bootloader: $(BUILD_DIR)/o/boot/boot.o 
 $(BUILD_DIR)/o/boot/boot.o: $(SRC_DIR)/boot/boot.asm
 	@mkdir -p $(BUILD_DIR)/o/boot
+	@echo ---------------------
 	@echo Assembling bootloader
+	@echo ---------------------
 	$(ASM) -felf32 $(SRC_DIR)/boot/boot.asm -o $(BUILD_DIR)/o/boot/boot.o
 
-kernel: $(OBJECTS) $(BUILD_DIR)/o/kernel/lib
-$(BUILD_DIR)/o/kernel/lib:
-	mkdir -p $(BUILD_DIR)/o/kernel/lib
-$(OBJECTS): $(CFILES) $(INC)/system.h
+kernel:
+	@mkdir -p $(BUILD_DIR)/o/kernel/lib
+	@mkdir -p $(BUILD_DIR)/o/kernel/utils
+	@echo -----------------
 	@echo Compiling C files
-	@make --no-print-directory -C ./src/kernel
+	@echo -----------------
+	make --no-print-directory -C ./src/kernel
 	
 clean:
 	@rm -rf $(ISO_DIR)

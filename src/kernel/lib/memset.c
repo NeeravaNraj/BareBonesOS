@@ -1,6 +1,6 @@
 #include <stddef.h>
 #include <stdint.h>
-#include "../include/system.h"
+#include <system.h>
 
 void memset(void *dest,const unsigned char src, size_t size)
 {
